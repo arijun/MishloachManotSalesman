@@ -42,6 +42,8 @@ export interface Segment {
 export interface RouteResult {
   /** Full ordered list: depot → stops (in delivery order) → depot */
   orderedStops: (Stop | Depot)[];
+  /** Full n×n matrix used by the solver. Empty array in shared/decoded routes
+   *  where only the route segments are available. */
   durationMatrix: DurationMatrix;
   totalDurationSec: number;
   segments: Segment[];

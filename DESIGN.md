@@ -369,6 +369,104 @@ stops complete.
 
 ---
 
+## Route Sharing
+
+A computed route can be shared as a URL — no server or database needed.
+
+### Encoding
+
+The full route state is serialized into a compact JSON payload, then encoded
+as `#route=<base64url>` in the URL hash (not the query string, so the hash
+never reaches the server):
+
+```
+JSON → encodeURIComponent → btoa → base64url → window.location.hash
+```
+
+The payload uses short keys to minimize URL length. For 50 stops the encoded
+hash is roughly 9 KB — well within browser URL limits.
+
+```typescript
+interface Payload {
+  v:    1;           // schema version for forward-compatibility
+  dep:  string;      // departure time "HH:MM"
+  s:    SDepot;      // start depot {a, la, lo}
+  e?:   SDepot;      // end depot (omitted when same as start)
+  st:   SStop[];     // delivery stops in optimised order
+  seg:  number[];    // segment drive times in seconds
+}
+
+interface SStop {
+  n: string;         // name
+  a: string;         // normalizedAddress
+  r?: string;        // rawAddress (omitted when equal to a)
+  p?: string;        // phone
+  t?: string;        // notes
+  la: number;        // latitude  (5 dp ≈ 1 m)
+  lo: number;        // longitude
+  dv?: 1;            // delivered flag (omitted when false)
+}
+```
+
+Coordinates are rounded to 5 decimal places (≈ 1 m precision).
+
+### Live Updates
+
+Every time the driver marks a delivery as complete, the hash is updated in
+place via `history.replaceState` — no page reload, no browser history entry.
+The current URL therefore always reflects the latest delivery state and can be
+shared at any moment via the "Copy Link" button.
+
+### Shared View
+
+When the page loads with a `#route=` hash present, it:
+1. Decodes the payload without re-geocoding or re-fetching the matrix.
+2. Renders the route map and stop list directly (Screen 3).
+3. Shows a yellow "Shared route view" banner.
+4. Hides the "Back" button (there is no local review state to return to).
+
+Delivery checkboxes remain interactive — the recipient of the shared link can
+also mark stops, and the URL updates accordingly.
+
+### Module
+
+`src/io/share.ts` exports:
+- `encodeRoute(route, departureTime, deliveredIds) → string`
+- `decodeRoute(encoded) → DecodedRoute | null`
+- `getSharedHash() → string | null`
+- `setRouteHash(encoded) → void`
+
+---
+
+## Deployment (GitHub Pages)
+
+The app builds to a static `dist/` directory and is deployed via GitHub
+Actions on every push to `main`.
+
+### vite.config.ts
+
+```typescript
+export default defineConfig({
+  base: process.env.VITE_BASE_PATH ?? '/',
+});
+```
+
+### Workflow (.github/workflows/deploy.yml)
+
+The workflow sets `VITE_BASE_PATH=/<repo-name>/` so all asset paths are
+correct under the GitHub Pages sub-path. GitHub's built-in Pages deployment
+action handles upload and publication.
+
+### Steps for the repository owner
+
+1. Create a GitHub repository and push this code to the `main` branch.
+2. In the repository **Settings → Pages**, set Source to
+   **"GitHub Actions"**.
+3. The first push to `main` will trigger the workflow and publish the site
+   at `https://<username>.github.io/<repo-name>/`.
+
+---
+
 ## Out of Scope (for now)
 
 - Traffic-aware routing (requires commercial API)

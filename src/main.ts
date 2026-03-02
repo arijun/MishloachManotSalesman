@@ -11,6 +11,8 @@ import { initPreviewMap, updatePreviewMarkers, initRouteMap, renderRoute, highli
 import { renderReviewTable, updateTableRow } from './ui/review-table.ts';
 import { renderRouteList } from './ui/route-list.ts';
 import { exportRouteCSV, exportPrintSheet, buildGoogleMapsLegs } from './io/export.ts';
+import { encodeRoute, decodeRoute, getSharedHash, setRouteHash } from './io/share.ts';
+import type { DecodedRoute } from './io/share.ts';
 import { attachAutocomplete } from './ui/autocomplete.ts';
 import type { AutocompleteOptions } from './ui/autocomplete.ts';
 
@@ -28,6 +30,8 @@ const state: AppState = {
 };
 
 let nextStopId = 0;
+let deliveredIds = new Set<string>();
+let isSharedView = false;
 const OUTLIER_THRESHOLD_SEC = 45 * 60;
 
 // Shared location bias for autocomplete. Set as soon as the start address is
@@ -78,6 +82,8 @@ const btnExportCSV    = document.getElementById('btn-export-csv')!;
 const btnExportPrint  = document.getElementById('btn-export-print')!;
 const btnExportGMaps  = document.getElementById('btn-export-gmaps')!;
 const gMapsLegNote    = document.getElementById('gmaps-leg-note')!;
+const btnShare        = document.getElementById('btn-share')!;
+const sharedBanner    = document.getElementById('shared-banner')!;
 
 // ── Autocomplete on address inputs ───────────────────────────────────
 //
@@ -341,6 +347,14 @@ function updateFindRouteButton(): void {
 
 btnFindRoute.addEventListener('click', () => { void runRouteSolver(); });
 
+function onDeliveredChange(stopId: string, delivered: boolean): void {
+  if (delivered) deliveredIds.add(stopId);
+  else deliveredIds.delete(stopId);
+  if (state.route) {
+    setRouteHash(encodeRoute(state.route, state.departureTime, deliveredIds));
+  }
+}
+
 // ── Route solver ──────────────────────────────────────────────────────
 
 async function runRouteSolver(): Promise<void> {
@@ -377,18 +391,39 @@ async function runRouteSolver(): Promise<void> {
   }
 
   state.route = { orderedStops, durationMatrix: matrix, totalDurationSec: totalSec, segments };
+  deliveredIds = new Set<string>();
+  isSharedView = false;
 
+  setRouteHash(encodeRoute(state.route, state.departureTime, deliveredIds));
   showScreen(screenRoute);
   initRouteMap('map-route');
   renderRoute(state.route);
   renderRouteList(routeList, routeSummary, state.route, state.departureTime,
-    i => { if (state.route) highlightStop(i, state.route); });
+    deliveredIds,
+    i => { if (state.route) highlightStop(i, state.route); },
+    onDeliveredChange,
+  );
   setupExportButtons();
 }
 
 // ── Route screen ──────────────────────────────────────────────────────
 
-btnBackReview.addEventListener('click', () => showScreen(screenReview));
+btnBackReview.addEventListener('click', () => {
+  if (!isSharedView) showScreen(screenReview);
+});
+
+btnShare.addEventListener('click', () => {
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    btnShare.textContent = 'Copied!';
+    btnShare.classList.add('copied');
+    setTimeout(() => {
+      btnShare.textContent = 'Copy Link';
+      btnShare.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    prompt('Copy this link:', window.location.href);
+  });
+});
 
 function setupExportButtons(): void {
   if (!state.route) return;
@@ -414,6 +449,37 @@ function setupExportButtons(): void {
     gMapsLegNote.classList.remove('hidden');
   }
 }
+
+// ── Shared route ──────────────────────────────────────────────────────
+
+function loadSharedRouteView(_decoded: DecodedRoute): void {
+  sharedBanner.classList.remove('hidden');
+  btnBackReview.setAttribute('disabled', 'true');
+  btnBackReview.classList.add('hidden');
+  showScreen(screenRoute);
+  initRouteMap('map-route');
+  renderRoute(state.route!);
+  renderRouteList(
+    routeList, routeSummary, state.route!, state.departureTime,
+    deliveredIds,
+    i => { if (state.route) highlightStop(i, state.route!); },
+    onDeliveredChange,
+  );
+  setupExportButtons();
+}
+
+// On page load, check for a shared route in the URL hash.
+(function checkSharedRoute(): void {
+  const hash = getSharedHash();
+  if (!hash) return;
+  const decoded = decodeRoute(hash);
+  if (!decoded) return;
+  isSharedView = true;
+  deliveredIds = decoded.deliveredIds;
+  state.route = decoded.route;
+  state.departureTime = decoded.departureTime;
+  loadSharedRouteView(decoded);
+})();
 
 // ── Helpers ───────────────────────────────────────────────────────────
 

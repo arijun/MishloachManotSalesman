@@ -27,7 +27,9 @@ export function renderRouteList(
   summaryEl: HTMLElement,
   result: RouteResult,
   departureTime: string,
+  deliveredIds: ReadonlySet<string>,
   onStopClick: (index: number) => void,
+  onDeliveredChange?: (stopId: string, delivered: boolean) => void,
 ): void {
   listEl.innerHTML = '';
 
@@ -72,11 +74,18 @@ export function renderRouteList(
       </div>
     `;
 
-    // Checkbox → mark delivered
+    // Checkbox — restore initial state, then track changes
     const cb = li.querySelector<HTMLInputElement>('.stop-check');
-    cb?.addEventListener('change', () => {
-      li.classList.toggle('delivered', cb.checked);
-    });
+    if (cb && isStop) {
+      const initiallyDelivered = deliveredIds.has(s.id);
+      cb.checked = initiallyDelivered;
+      li.classList.toggle('delivered', initiallyDelivered);
+
+      cb.addEventListener('change', () => {
+        li.classList.toggle('delivered', cb.checked);
+        onDeliveredChange?.(s.id, cb.checked);
+      });
+    }
 
     // Click on body → pan map
     li.querySelector('.stop-body')?.addEventListener('click', () => onStopClick(i));
@@ -88,6 +97,6 @@ export function renderRouteList(
     }
   });
 
-  const stopCount = result.orderedStops.length - 2; // exclude depots
+  const stopCount = result.orderedStops.length - 2;
   summaryEl.textContent = `${stopCount} stops · ~${formatDuration(result.totalDurationSec)} total drive time`;
 }
