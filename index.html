@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mishloach Manot Route Planner</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+
+    <!-- ── Screen 1: Input ─────────────────────────────────────────── -->
+    <section id="screen-input" class="screen active">
+      <div class="screen-inner">
+        <header class="app-header">
+          <h1>Mishloach Manot Route Planner</h1>
+          <p class="subtitle">Optimized delivery routes for Purim</p>
+        </header>
+
+        <form id="form-input" novalidate>
+          <div class="field">
+            <label for="start-address">Start address <span class="required">*</span></label>
+            <input
+              type="text"
+              id="start-address"
+              placeholder="123 Main St, Baltimore, MD"
+              autocomplete="street-address"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="end-address">
+              End address <span class="hint">(optional — defaults to start)</span>
+            </label>
+            <input
+              type="text"
+              id="end-address"
+              placeholder="Same as start"
+              autocomplete="street-address"
+            />
+          </div>
+
+          <div class="field">
+            <label for="departure-time">Estimated departure time</label>
+            <input type="time" id="departure-time" value="10:00" />
+          </div>
+
+          <div class="field">
+            <label>Recipient list <span class="required">*</span></label>
+            <div
+              id="drop-zone"
+              role="button"
+              tabindex="0"
+              aria-label="Drop CSV file here or click to browse"
+            >
+              <span id="drop-zone-text">Drop CSV here or <u>click to browse</u></span>
+              <span id="drop-zone-filename" class="hidden"></span>
+            </div>
+            <input type="file" id="file-input" accept=".csv" class="sr-only" />
+          </div>
+
+          <details class="format-hint">
+            <summary>CSV format</summary>
+            <div class="format-hint-body">
+              <p>
+                One recipient per row. Required columns: <code>Name</code>, <code>Address</code>.
+                Optional: <code>Phone</code>, <code>Notes</code>.
+              </p>
+              <pre>Name,Address,Phone,Notes
+Goldberg family,123 Oak St,(410) 555-0101,Leave at door
+Levy,456 Elm Ave Apt 2,,Dog in yard
+Cohen,789 Maple Dr,(410) 555-0303,</pre>
+              <p>If an address has no city, the city from your start address will be used.</p>
+            </div>
+          </details>
+
+          <div id="input-error" class="error-banner hidden"></div>
+
+          <button type="submit" id="btn-load" class="btn btn-primary">
+            Load Addresses
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ── Screen 2: Review ────────────────────────────────────────── -->
+    <section id="screen-review" class="screen">
+      <div class="review-header">
+        <div class="review-header-left">
+          <button id="btn-back-input" class="btn btn-ghost">&larr; Back</button>
+          <h2>Review Addresses</h2>
+        </div>
+        <button id="btn-find-route" class="btn btn-primary" disabled>
+          Find Route
+        </button>
+      </div>
+
+      <div id="geocode-progress" class="progress-bar-wrap hidden">
+        <div class="progress-bar-label">
+          <span id="progress-label">Geocoding addresses…</span>
+          <span id="progress-count"></span>
+        </div>
+        <div class="progress-bar-track">
+          <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div id="review-error" class="error-banner hidden"></div>
+
+      <div class="review-layout">
+        <div id="review-table-container">
+          <table id="review-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Phone</th>
+                <th>Notes</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="review-tbody"></tbody>
+          </table>
+        </div>
+        <div id="map-preview"></div>
+      </div>
+    </section>
+
+    <!-- ── Screen 3: Route ─────────────────────────────────────────── -->
+    <section id="screen-route" class="screen">
+      <div class="route-layout">
+
+        <aside id="route-sidebar">
+          <div class="sidebar-header">
+            <button id="btn-back-review" class="btn btn-ghost">&larr; Back</button>
+            <h2>Delivery Route</h2>
+          </div>
+
+          <div id="route-summary" class="route-summary">
+            <!-- Filled by JS: "X stops · ~Y min total" -->
+          </div>
+
+          <div id="export-toolbar">
+            <button id="btn-export-csv" class="btn btn-sm">Download CSV</button>
+            <button id="btn-export-print" class="btn btn-sm">Print Sheet</button>
+            <div class="maps-export-wrap">
+              <button id="btn-export-gmaps" class="btn btn-sm">Google Maps ↗</button>
+              <span id="gmaps-leg-note" class="hint hidden"></span>
+            </div>
+          </div>
+
+          <ol id="route-list">
+            <!-- Filled by JS -->
+          </ol>
+        </aside>
+
+        <div id="map-route"></div>
+      </div>
+    </section>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
