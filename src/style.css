@@ -372,7 +372,55 @@ input[type="time"]:focus {
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
-.maps-export-wrap { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+/* Toolbar popovers (export + gmaps legs) */
+.popover-wrap { position: relative; }
+.toolbar-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 160px;
+  overflow: hidden;
+}
+.toolbar-popover-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.88rem;
+  font-family: var(--font);
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+.toolbar-popover-item:last-child { border-bottom: none; }
+.toolbar-popover-item:hover { background: #f5f4f0; }
+.toolbar-popover-item.share-item { color: #166534; }
+
+/* Sheet handle (hidden on desktop, drag grip on mobile) */
+.sheet-handle {
+  display: none;
+  justify-content: center;
+  padding: 10px 0 6px;
+  cursor: grab;
+  flex-shrink: 0;
+}
+.sheet-handle::before {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+}
 
 /* Route list */
 #route-list {
@@ -441,10 +489,35 @@ input[type="time"]:focus {
 
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 700px) {
+  /* Review screen */
   .review-layout { flex-direction: column; }
   #map-preview { width: 100%; height: 220px; border-right: none; border-top: 1px solid var(--color-border); }
 
-  .route-layout { flex-direction: column-reverse; }
-  #route-sidebar { width: 100%; height: 50vh; border-right: none; border-top: 1px solid var(--color-border); }
-  #map-route { height: 50vh; }
+  /* Route screen — bottom sheet */
+  .sheet-handle { display: flex; }
+
+  .route-layout { position: relative; }
+
+  #map-route {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    flex: none;
+  }
+
+  #route-sidebar {
+    position: absolute;
+    inset: auto 0 0 0;
+    width: 100%;
+    height: 70vh;
+    /* collapsed: only the handle + header peek above the bottom edge */
+    transform: translateY(calc(70vh - 5.5rem));
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    border-right: none;
+    border-top: none;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -2px 20px rgba(0,0,0,0.15);
+    z-index: 10;
+  }
+  #route-sidebar.sheet-open { transform: translateY(0); }
 }

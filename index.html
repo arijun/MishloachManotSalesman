@@ -173,6 +173,7 @@ Cohen,789 Maple Dr,(410) 555-0303,</pre>
       <div class="route-layout">
 
         <aside id="route-sidebar">
+          <div class="sheet-handle" id="sheet-handle"></div>
           <div class="sidebar-header">
             <button id="btn-back-review" class="btn btn-ghost">&larr; Back</button>
             <h2>Delivery Route</h2>
@@ -183,13 +184,18 @@ Cohen,789 Maple Dr,(410) 555-0303,</pre>
           </div>
 
           <div id="export-toolbar">
-            <button id="btn-export-csv" class="btn btn-sm">Download CSV</button>
-            <button id="btn-export-print" class="btn btn-sm">Print Sheet</button>
-            <div class="maps-export-wrap">
-              <button id="btn-export-gmaps" class="btn btn-sm">Google Maps ↗</button>
-              <span id="gmaps-leg-note" class="hint hidden"></span>
+            <div class="popover-wrap">
+              <button id="btn-export-toggle" class="btn btn-sm">Export</button>
+              <div id="export-popover" class="toolbar-popover hidden">
+                <button id="btn-export-csv" class="toolbar-popover-item">Download CSV</button>
+                <button id="btn-export-print" class="toolbar-popover-item">Print Sheet</button>
+                <button id="btn-share" class="toolbar-popover-item share-item">Copy Link</button>
+              </div>
             </div>
-            <button id="btn-share" class="btn btn-sm btn-share">Copy Link</button>
+            <div class="popover-wrap" id="gmaps-wrap">
+              <button id="btn-export-gmaps" class="btn btn-sm">Google Maps ↗</button>
+              <div id="gmaps-popover" class="toolbar-popover hidden"></div>
+            </div>
           </div>
 
           <ol id="route-list">

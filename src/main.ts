@@ -81,10 +81,15 @@ const btnCancelAdd    = document.getElementById('btn-cancel-add')!;
 const btnBackReview   = document.getElementById('btn-back-review')!;
 const routeList       = document.getElementById('route-list') as HTMLOListElement;
 const routeSummary    = document.getElementById('route-summary')!;
+const btnExportToggle = document.getElementById('btn-export-toggle')!;
+const exportPopover   = document.getElementById('export-popover')!;
+const gmapsPopover    = document.getElementById('gmaps-popover') as HTMLDivElement;
 const btnExportCSV    = document.getElementById('btn-export-csv')!;
 const btnExportPrint  = document.getElementById('btn-export-print')!;
 const btnExportGMaps  = document.getElementById('btn-export-gmaps')!;
-const gMapsLegNote    = document.getElementById('gmaps-leg-note')!;
+const routeSidebar    = document.getElementById('route-sidebar')!;
+const mapRouteEl      = document.getElementById('map-route')!;
+const sheetHandle     = document.getElementById('sheet-handle')!;
 const btnShare             = document.getElementById('btn-share')!;
 const btnShareReview       = document.getElementById('btn-share-review')!;
 const sharedReviewBanner   = document.getElementById('shared-review-banner')!;
@@ -399,6 +404,8 @@ async function runRouteSolver(): Promise<void> {
   isSharedView = false;
 
   setRouteHash(encodeRoute(state.route, state.departureTime, deliveredIds));
+  sheetOpen = false;
+  routeSidebar.classList.remove('sheet-open');
   showScreen(screenRoute);
   initRouteMap('map-route');
   renderRoute(state.route);
@@ -409,6 +416,58 @@ async function runRouteSolver(): Promise<void> {
   );
   setupExportButtons();
 }
+
+// ── Bottom sheet (mobile route screen) ───────────────────────────────
+
+let sheetOpen = false;
+const isMobile = () => window.innerWidth <= 700;
+
+function setSheetOpen(open: boolean): void {
+  sheetOpen = open;
+  routeSidebar.classList.toggle('sheet-open', open);
+  setTimeout(() => invalidateMaps(), 320);
+}
+
+// Drag handle: swipe or tap to toggle
+let dragStartY = 0;
+sheetHandle.addEventListener('touchstart', e => {
+  dragStartY = e.touches[0].clientY;
+}, { passive: true });
+sheetHandle.addEventListener('touchend', e => {
+  if (!isMobile()) return;
+  const dy = dragStartY - e.changedTouches[0].clientY;
+  if (Math.abs(dy) < 10) setSheetOpen(!sheetOpen);
+  else if (dy > 30)      setSheetOpen(true);
+  else if (dy < -30)     setSheetOpen(false);
+}, { passive: true });
+
+// Tap collapsed header / summary to expand
+routeSidebar.querySelector('.sidebar-header')!.addEventListener('click', () => {
+  if (isMobile() && !sheetOpen) setSheetOpen(true);
+});
+routeSummary.addEventListener('click', () => {
+  if (isMobile() && !sheetOpen) setSheetOpen(true);
+});
+
+// Tap map to collapse
+mapRouteEl.addEventListener('click', () => {
+  if (isMobile() && sheetOpen) setSheetOpen(false);
+});
+
+// ── Export popover ────────────────────────────────────────────────────
+
+btnExportToggle.addEventListener('click', e => {
+  e.stopPropagation();
+  const closing = !exportPopover.classList.contains('hidden');
+  exportPopover.classList.toggle('hidden', closing);
+  gmapsPopover.classList.add('hidden');
+});
+
+// Clicking anywhere outside closes all popovers
+document.addEventListener('click', () => {
+  exportPopover.classList.add('hidden');
+  gmapsPopover.classList.add('hidden');
+});
 
 // ── Route screen ──────────────────────────────────────────────────────
 
@@ -440,13 +499,11 @@ btnShareReview.addEventListener('click', () => {
 });
 
 btnShare.addEventListener('click', () => {
+  exportPopover.classList.add('hidden');
   navigator.clipboard.writeText(window.location.href).then(() => {
-    btnShare.textContent = 'Copied!';
-    btnShare.classList.add('copied');
-    setTimeout(() => {
-      btnShare.textContent = 'Copy Link';
-      btnShare.classList.remove('copied');
-    }, 2000);
+    const orig = btnExportToggle.textContent!;
+    btnExportToggle.textContent = '✓ Copied!';
+    setTimeout(() => { btnExportToggle.textContent = orig; }, 2000);
   }).catch(() => {
     prompt('Copy this link:', window.location.href);
   });
@@ -458,22 +515,31 @@ function setupExportButtons(): void {
   btnExportPrint.onclick = () => exportPrintSheet(state.route!, state.departureTime);
 
   const legs = buildGoogleMapsLegs(state.route);
+  gmapsPopover.innerHTML = '';
+
   if (legs.length === 1) {
     btnExportGMaps.textContent = 'Google Maps ↗';
     btnExportGMaps.onclick = () => window.open(legs[0].url, '_blank');
-    gMapsLegNote.classList.add('hidden');
-  } else if (legs.length > 1) {
-    const toolbar = btnExportGMaps.parentElement!;
-    btnExportGMaps.remove();
+  } else {
+    // Multiple legs: button opens a popover listing each leg
+    btnExportGMaps.textContent = 'Google Maps ↗';
     legs.forEach(leg => {
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-sm';
-      btn.textContent = leg.label + ' ↗';
-      btn.onclick = () => window.open(leg.url, '_blank');
-      toolbar.appendChild(btn);
+      const item = document.createElement('button');
+      item.className = 'toolbar-popover-item';
+      item.textContent = `${leg.label} ↗`;
+      item.addEventListener('click', e => {
+        e.stopPropagation();
+        gmapsPopover.classList.add('hidden');
+        window.open(leg.url, '_blank');
+      });
+      gmapsPopover.appendChild(item);
     });
-    gMapsLegNote.textContent = `Route split into ${legs.length} legs (Google Maps limit: 10 waypoints each)`;
-    gMapsLegNote.classList.remove('hidden');
+    btnExportGMaps.onclick = e => {
+      e.stopPropagation();
+      const closing = !gmapsPopover.classList.contains('hidden');
+      gmapsPopover.classList.toggle('hidden', closing);
+      exportPopover.classList.add('hidden');
+    };
   }
 }
 
@@ -494,6 +560,8 @@ function loadSharedRouteView(decoded: DecodedRoute): void {
   nextStopId  = state.stops.length;
   biasCoords ??= state.depot.coords;
 
+  sheetOpen = false;
+  routeSidebar.classList.remove('sheet-open');
   showScreen(screenRoute);
   initRouteMap('map-route');
   renderRoute(state.route!);
