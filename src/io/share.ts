@@ -27,7 +27,7 @@
  *   dv   — delivered: present and 1 when true, omitted otherwise
  */
 
-import type { RouteResult, Stop, Depot, Segment } from '../types.ts';
+import type { RouteResult, Stop, Depot, Segment, StopStatus } from '../types.ts';
 
 const SCHEMA_VERSION = 1;
 
@@ -180,4 +180,105 @@ export function getSharedHash(): string | null {
 
 export function setRouteHash(encoded: string): void {
   history.replaceState(null, '', HASH_PREFIX + encoded);
+}
+
+// ── Review state sharing ───────────────────────────────────────────────
+//
+// Encodes the address-review phase into #review=<base64url> so collaborators
+// can open the same list, add more stops, and then find a route together.
+//
+// Schema (compact JSON, short keys):
+//   v    — schema version (1)
+//   dep  — departure time "HH:MM"
+//   sd   — start depot {a, la, lo}
+//   ed   — end depot (omitted when same as start)
+//   st   — stops array
+//
+// Each stop (st[]):
+//   n    — name
+//   a    — normalizedAddress
+//   r    — rawAddress (omitted when equal to a)
+//   p    — phone (omitted when empty)
+//   t    — notes (omitted when empty)
+//   la   — latitude  (5 dp; omitted for not-found stops)
+//   lo   — longitude (5 dp; omitted for not-found stops)
+//   s    — status shorthand: 'ok'|'ue'(user-edited)|'nf'(not-found)|'out'(outlier)
+
+interface RDepot { a: string; la: number; lo: number; }
+interface RStop {
+  n: string; a: string; r?: string; p?: string; t?: string;
+  la?: number; lo?: number;
+  s: string;
+}
+interface ReviewPayload { v: 1; dep: string; sd: RDepot; ed?: RDepot; st: RStop[]; }
+
+const STATUS_SH: Partial<Record<StopStatus, string>> = {
+  'ok': 'ok', 'user-edited': 'ue', 'not-found': 'nf', 'outlier': 'out',
+};
+const STATUS_UN: Record<string, StopStatus> = {
+  'ok': 'ok', 'ue': 'user-edited', 'nf': 'not-found', 'out': 'outlier',
+};
+
+export function encodeReviewState(
+  depot: Depot,
+  endDepot: Depot | null,
+  stops: Stop[],
+  departureTime: string,
+): string {
+  const toRD = (d: Depot): RDepot => ({ a: d.normalizedAddress, la: r5(d.coords.lat), lo: r5(d.coords.lng) });
+  const sameDepot = !endDepot ||
+    (depot.normalizedAddress === endDepot.normalizedAddress && depot.coords.lat === endDepot.coords.lat);
+  const payload: ReviewPayload = {
+    v: 1, dep: departureTime, sd: toRD(depot),
+    st: stops.map(s => {
+      const rs: RStop = { n: s.name, a: s.normalizedAddress, s: STATUS_SH[s.status] ?? 'nf' };
+      if (s.rawAddress !== s.normalizedAddress) rs.r = s.rawAddress;
+      if (s.phone) rs.p = s.phone;
+      if (s.notes) rs.t = s.notes;
+      if (s.coords) { rs.la = r5(s.coords.lat); rs.lo = r5(s.coords.lng); }
+      return rs;
+    }),
+  };
+  if (!sameDepot) payload.ed = toRD(endDepot!);
+  return toBase64url(encodeURIComponent(JSON.stringify(payload)));
+}
+
+export interface DecodedReviewState {
+  depot: Depot;
+  endDepot: Depot | null;
+  stops: Stop[];
+  departureTime: string;
+}
+
+export function decodeReviewState(encoded: string): DecodedReviewState | null {
+  let payload: ReviewPayload;
+  try {
+    payload = JSON.parse(decodeURIComponent(fromBase64url(encoded))) as ReviewPayload;
+  } catch { return null; }
+  if (payload.v !== 1) return null;
+
+  const toDepot = (rd: RDepot): Depot => ({
+    rawAddress: rd.a, normalizedAddress: rd.a, coords: { lat: rd.la, lng: rd.lo },
+  });
+  const depot    = toDepot(payload.sd);
+  const endDepot = payload.ed ? toDepot(payload.ed) : null;
+  const stops: Stop[] = payload.st.map((rs, i) => ({
+    id: String(i),
+    name: rs.n, normalizedAddress: rs.a, rawAddress: rs.r ?? rs.a,
+    phone: rs.p ?? '', notes: rs.t ?? '',
+    coords: rs.la !== undefined && rs.lo !== undefined ? { lat: rs.la, lng: rs.lo } : undefined,
+    status: STATUS_UN[rs.s] ?? 'not-found',
+  }));
+  return { depot, endDepot, stops, departureTime: payload.dep };
+}
+
+const REVIEW_HASH_PREFIX = '#review=';
+
+export function getReviewHash(): string | null {
+  const h = window.location.hash;
+  return h.startsWith(REVIEW_HASH_PREFIX) ? h.slice(REVIEW_HASH_PREFIX.length) : null;
+}
+
+export function setReviewHash(encoded: string): void {
+  history.replaceState(null, '', REVIEW_HASH_PREFIX + encoded);
 }

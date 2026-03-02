@@ -11,8 +11,11 @@ import { initPreviewMap, updatePreviewMarkers, initRouteMap, renderRoute, highli
 import { renderReviewTable, updateTableRow } from './ui/review-table.ts';
 import { renderRouteList } from './ui/route-list.ts';
 import { exportRouteCSV, exportPrintSheet, buildGoogleMapsLegs } from './io/export.ts';
-import { encodeRoute, decodeRoute, getSharedHash, setRouteHash } from './io/share.ts';
-import type { DecodedRoute } from './io/share.ts';
+import {
+  encodeRoute, decodeRoute, getSharedHash, setRouteHash,
+  encodeReviewState, decodeReviewState, getReviewHash, setReviewHash,
+} from './io/share.ts';
+import type { DecodedRoute, DecodedReviewState } from './io/share.ts';
 import { attachAutocomplete } from './ui/autocomplete.ts';
 import type { AutocompleteOptions } from './ui/autocomplete.ts';
 
@@ -82,8 +85,10 @@ const btnExportCSV    = document.getElementById('btn-export-csv')!;
 const btnExportPrint  = document.getElementById('btn-export-print')!;
 const btnExportGMaps  = document.getElementById('btn-export-gmaps')!;
 const gMapsLegNote    = document.getElementById('gmaps-leg-note')!;
-const btnShare        = document.getElementById('btn-share')!;
-const sharedBanner    = document.getElementById('shared-banner')!;
+const btnShare             = document.getElementById('btn-share')!;
+const sharedBanner         = document.getElementById('shared-banner')!;
+const btnShareReview       = document.getElementById('btn-share-review')!;
+const sharedReviewBanner   = document.getElementById('shared-review-banner')!;
 
 // ── Autocomplete on address inputs ───────────────────────────────────
 //
@@ -409,7 +414,30 @@ async function runRouteSolver(): Promise<void> {
 // ── Route screen ──────────────────────────────────────────────────────
 
 btnBackReview.addEventListener('click', () => {
-  if (!isSharedView) showScreen(screenReview);
+  if (isSharedView) {
+    // Review screen was never set up in the shared-route flow — initialize it now.
+    initPreviewMap('map-preview');
+    renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave, deliveryAcOptions);
+    updatePreviewMarkers(state.stops, state.depot);
+    updateFindRouteButton();
+  }
+  showScreen(screenReview);
+});
+
+btnShareReview.addEventListener('click', () => {
+  if (!state.depot) return;
+  const encoded = encodeReviewState(state.depot, state.endDepot, state.stops, state.departureTime);
+  setReviewHash(encoded);
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    btnShareReview.textContent = 'Copied!';
+    btnShareReview.classList.add('copied');
+    setTimeout(() => {
+      btnShareReview.textContent = 'Share List';
+      btnShareReview.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    prompt('Copy this link:', window.location.href);
+  });
 });
 
 btnShare.addEventListener('click', () => {
@@ -452,10 +480,22 @@ function setupExportButtons(): void {
 
 // ── Shared route ──────────────────────────────────────────────────────
 
-function loadSharedRouteView(_decoded: DecodedRoute): void {
+function loadSharedRouteView(decoded: DecodedRoute): void {
+  // Reconstruct AppState so the review screen is usable if the user goes Back.
+  const all = decoded.route.orderedStops;
+  state.depot = all[0] as Depot;
+  const lastDepot = all[all.length - 1] as Depot;
+  state.endDepot = (
+    state.depot.normalizedAddress !== lastDepot.normalizedAddress ||
+    state.depot.coords.lat !== lastDepot.coords.lat
+  ) ? lastDepot : null;
+  state.startAddress = state.depot.normalizedAddress;
+  state.endAddress   = state.endDepot?.normalizedAddress ?? state.startAddress;
+  state.stops = all.slice(1, -1) as Stop[];
+  nextStopId  = state.stops.length;
+  biasCoords ??= state.depot.coords;
+
   sharedBanner.classList.remove('hidden');
-  btnBackReview.setAttribute('disabled', 'true');
-  btnBackReview.classList.add('hidden');
   showScreen(screenRoute);
   initRouteMap('map-route');
   renderRoute(state.route!);
@@ -468,17 +508,43 @@ function loadSharedRouteView(_decoded: DecodedRoute): void {
   setupExportButtons();
 }
 
-// On page load, check for a shared route in the URL hash.
-(function checkSharedRoute(): void {
-  const hash = getSharedHash();
-  if (!hash) return;
-  const decoded = decodeRoute(hash);
-  if (!decoded) return;
-  isSharedView = true;
-  deliveredIds = decoded.deliveredIds;
-  state.route = decoded.route;
+function loadSharedReviewState(decoded: DecodedReviewState): void {
+  state.depot        = decoded.depot;
+  state.endDepot     = decoded.endDepot;
+  state.stops        = decoded.stops;
   state.departureTime = decoded.departureTime;
-  loadSharedRouteView(decoded);
+  state.startAddress = decoded.depot.normalizedAddress;
+  state.endAddress   = decoded.endDepot?.normalizedAddress ?? state.startAddress;
+  nextStopId  = decoded.stops.length;
+  biasCoords ??= decoded.depot.coords;
+
+  sharedReviewBanner.classList.remove('hidden');
+  showScreen(screenReview);
+  initPreviewMap('map-preview');
+  renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave, deliveryAcOptions);
+  updatePreviewMarkers(state.stops, state.depot);
+  updateFindRouteButton();
+}
+
+// On page load, detect #route= or #review= hashes and skip the input screen.
+(function checkSharedRoute(): void {
+  const routeHash = getSharedHash();
+  if (routeHash) {
+    const decoded = decodeRoute(routeHash);
+    if (decoded) {
+      isSharedView = true;
+      deliveredIds = decoded.deliveredIds;
+      state.route = decoded.route;
+      state.departureTime = decoded.departureTime;
+      loadSharedRouteView(decoded);
+      return;
+    }
+  }
+  const reviewHash = getReviewHash();
+  if (reviewHash) {
+    const decoded = decodeReviewState(reviewHash);
+    if (decoded) loadSharedReviewState(decoded);
+  }
 })();
 
 // ── Helpers ───────────────────────────────────────────────────────────
