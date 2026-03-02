@@ -487,11 +487,118 @@ input[type="time"]:focus {
 
 #map-route { flex: 1; min-width: 0; }
 
+/* Row expand button — desktop: hidden; mobile: shown via media query */
+.row-expand-btn { display: none; }
+
+/* Name span for ellipsis truncation on mobile */
+.name-text { display: contents; }
+
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 700px) {
-  /* Review screen */
+  /* Review header — icon-only secondary buttons */
+  .review-header .btn-label { display: none; }
+  .review-header h2 { font-size: 0.9rem; }
+
+  /* Review table — collapsed accordion rows */
   .review-layout { flex-direction: column; }
-  #map-preview { width: 100%; height: 220px; border-right: none; border-top: 1px solid var(--color-border); }
+  #map-preview { width: 100%; height: 200px; border-right: none; border-top: 1px solid var(--color-border); }
+
+  #review-table, #review-table tbody { display: block; }
+  #review-table thead { display: none; }
+
+  #review-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    border-bottom: 1px solid var(--color-border);
+  }
+  /* Move the red error indicator from td to tr on mobile */
+  #review-table tr.flagged td:first-child { border-left: none; }
+  #review-table tr.flagged { border-left: 3px solid var(--color-danger); }
+
+  /* Hide all cells then selectively show */
+  #review-table td { display: none; border: none; padding: 0; vertical-align: initial; }
+
+  /* # column */
+  #review-table td:nth-child(1) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    min-height: 2.75rem;
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    flex-shrink: 0;
+  }
+
+  /* Name column (contains name text + expand button) */
+  #review-table td:nth-child(2) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0 0.5rem 0 0;
+    min-height: 2.75rem;
+  }
+  .name-text {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Expand button */
+  .row-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.8rem;
+    height: 1.8rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    padding: 0;
+    transition: transform 0.2s;
+    border-radius: var(--radius);
+  }
+  .row-expand-btn:hover { background: var(--color-border); }
+  .row-expanded .row-expand-btn { transform: rotate(90deg); }
+
+  /* Address cell — always shown for depot + flagged; shown on expand for others */
+  #review-table tr.depot-row td:nth-child(3),
+  #review-table tr.flagged td:nth-child(3),
+  #review-table tr.row-expanded td:nth-child(3) {
+    display: block;
+    width: 100%;
+    padding: 0.1rem 0.75rem 0.5rem 2rem;
+    font-size: 0.82rem;
+  }
+
+  /* Phone + Notes — only when expanded and non-empty */
+  #review-table tr.row-expanded.has-phone td:nth-child(4) {
+    display: block;
+    width: 100%;
+    padding: 0 0.75rem 0.3rem 2rem;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+  }
+  #review-table tr.row-expanded.has-notes td:nth-child(5) {
+    display: block;
+    width: 100%;
+    padding: 0 0.75rem 0.4rem 2rem;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    font-style: italic;
+  }
 
   /* Route screen — bottom sheet */
   .sheet-handle { display: flex; }

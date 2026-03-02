@@ -38,15 +38,16 @@ export function renderReviewTable(
 ): void {
   tbody.innerHTML = '';
 
-  // Depot row (non-editable)
+  // Depot row (non-editable, always shows address on mobile)
   if (depot) {
     const tr = document.createElement('tr');
+    tr.classList.add('depot-row');
     tr.innerHTML = `
       <td>S</td>
-      <td><strong>Start</strong></td>
+      <td><span class="name-text"><strong>Start</strong></span></td>
       <td>${escapeHtml(depot.normalizedAddress)}</td>
-      <td>—</td>
-      <td>—</td>
+      <td></td>
+      <td></td>
     `;
     tbody.appendChild(tr);
   }
@@ -57,9 +58,16 @@ export function renderReviewTable(
     tr.dataset.stopId = stop.id;
     if (isFlagged) tr.classList.add('flagged');
 
+    if (stop.phone) tr.classList.add('has-phone');
+    if (stop.notes) tr.classList.add('has-notes');
+    if (isFlagged)  tr.classList.add('row-expanded');
+
     tr.innerHTML = `
       <td>${i + 1}</td>
-      <td>${escapeHtml(stop.name)}</td>
+      <td>
+        <span class="name-text">${escapeHtml(stop.name)}</span>
+        <button class="row-expand-btn" aria-label="Toggle details">▸</button>
+      </td>
       <td class="addr-cell">
         <span class="addr-text">${escapeHtml(stop.normalizedAddress)}</span>
         ${renderOriginalAddr(stop)}
@@ -69,6 +77,9 @@ export function renderReviewTable(
       <td>${escapeHtml(stop.phone)}</td>
       <td>${escapeHtml(stop.notes)}</td>
     `;
+
+    const expandBtn = tr.querySelector<HTMLButtonElement>('.row-expand-btn')!;
+    expandBtn.addEventListener('click', () => tr.classList.toggle('row-expanded'));
 
     if (isFlagged) {
       const form = tr.querySelector<HTMLElement>('.inline-edit-form')!;
