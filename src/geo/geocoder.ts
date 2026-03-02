@@ -19,11 +19,31 @@ export type GeocoderProgressCallback = (done: number, total: number) => void;
 // the building location and actively break Nominatim/Photon queries.
 // Strip them before sending the query, but preserve them for display.
 
-const UNIT_RE = /\s*,?\s*(?:apt\.?|suite|ste\.?|unit|no\.?|apartment)\s+[\w-]+/gi;
-const HASH_RE = /\s*#\s*[\w-]+/g;
+const UNIT_RE    = /\s*,?\s*(?:apt\.?|suite|ste\.?|unit|no\.?|apartment)\s+[\w-]+/gi;
+const HASH_RE    = /\s*#\s*[\w-]+/g;
+const ORDINAL_RE = /^(?:st|nd|rd|th)$/i;
 
+/**
+ * Strip unit numbers and house-number letter suffixes before geocoding.
+ * These confuse Nominatim/Photon without contributing to location accuracy.
+ *
+ * Examples:
+ *   "7322 Rainier Ave S #303 Seattle, WA"  → "7322 Rainier Ave S Seattle, WA"
+ *   "4846A S Morgan St Seattle, WA"         → "4846 S Morgan St Seattle, WA"
+ *   "123 Main St Apt 4B, Seattle, WA"       → "123 Main St, Seattle, WA"
+ *   "1st Ave N, Seattle, WA"                → unchanged (ordinal preserved)
+ */
 export function stripUnitForGeocoding(address: string): string {
-  return address.replace(UNIT_RE, '').replace(HASH_RE, '').replace(/\s{2,}/g, ' ').trim();
+  return address
+    .replace(UNIT_RE, '')
+    .replace(HASH_RE, '')
+    // Strip letter suffix immediately after leading house number: "4846A " → "4846 "
+    // but keep ordinals ("1st", "2nd", "3rd", "4th")
+    .replace(/^(\d+)([A-Za-z]{1,2})(?=[\s,])/, (_, num: string, suffix: string) =>
+      ORDINAL_RE.test(suffix) ? num + suffix : num,
+    )
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 // ── Nominatim ─────────────────────────────────────────────────────────

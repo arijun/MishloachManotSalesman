@@ -77,9 +77,14 @@ Cohen,789 Maple Dr,(410) 555-0303,</pre>
 
           <div id="input-error" class="error-banner hidden"></div>
 
-          <button type="submit" id="btn-load" class="btn btn-primary">
-            Load Addresses
-          </button>
+          <div class="input-actions">
+            <button type="submit" id="btn-load" class="btn btn-primary">
+              Load Addresses
+            </button>
+            <button type="button" id="btn-skip-csv" class="btn btn-ghost">
+              Enter manually instead
+            </button>
+          </div>
         </form>
       </div>
     </section>
@@ -91,9 +96,40 @@ Cohen,789 Maple Dr,(410) 555-0303,</pre>
           <button id="btn-back-input" class="btn btn-ghost">&larr; Back</button>
           <h2>Review Addresses</h2>
         </div>
-        <button id="btn-find-route" class="btn btn-primary" disabled>
-          Find Route
-        </button>
+        <div class="review-header-right">
+          <button id="btn-add-stop" class="btn btn-ghost">+ Add Stop</button>
+          <button id="btn-find-route" class="btn btn-primary" disabled>
+            Find Route
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Add Stop panel ─────────────────────────────────────── -->
+      <div id="add-stop-panel" class="add-stop-panel hidden">
+        <form id="form-add-stop" novalidate>
+          <div class="add-stop-fields">
+            <div class="field field-sm">
+              <label for="add-name">Name <span class="required">*</span></label>
+              <input type="text" id="add-name" placeholder="Goldberg family" />
+            </div>
+            <div class="field field-sm field-addr">
+              <label for="add-address">Address <span class="required">*</span></label>
+              <input type="text" id="add-address" placeholder="123 Oak St, Seattle, WA" autocomplete="off" />
+            </div>
+            <div class="field field-sm">
+              <label for="add-phone">Phone</label>
+              <input type="text" id="add-phone" placeholder="(optional)" />
+            </div>
+            <div class="field field-sm">
+              <label for="add-notes">Notes</label>
+              <input type="text" id="add-notes" placeholder="(optional)" />
+            </div>
+          </div>
+          <div class="add-stop-actions">
+            <button type="submit" class="btn btn-primary btn-sm">Add Stop</button>
+            <button type="button" id="btn-cancel-add" class="btn btn-ghost btn-sm">Cancel</button>
+          </div>
+        </form>
       </div>
 
       <div id="geocode-progress" class="progress-bar-wrap hidden">

@@ -11,6 +11,7 @@ import { initPreviewMap, updatePreviewMarkers, initRouteMap, renderRoute, highli
 import { renderReviewTable, updateTableRow } from './ui/review-table.ts';
 import { renderRouteList } from './ui/route-list.ts';
 import { exportRouteCSV, exportPrintSheet, buildGoogleMapsLegs } from './io/export.ts';
+import { attachAutocomplete } from './ui/autocomplete.ts';
 
 // ── State ─────────────────────────────────────────────────────────────
 
@@ -25,7 +26,8 @@ const state: AppState = {
   route: null,
 };
 
-const OUTLIER_THRESHOLD_SEC = 45 * 60; // 45 minutes
+let nextStopId = 0;
+const OUTLIER_THRESHOLD_SEC = 45 * 60;
 
 // ── DOM refs ──────────────────────────────────────────────────────────
 
@@ -42,15 +44,24 @@ const dropZone        = document.getElementById('drop-zone')!;
 const dropZoneText    = document.getElementById('drop-zone-text')!;
 const dropZoneFile    = document.getElementById('drop-zone-filename')!;
 const inputError      = document.getElementById('input-error')!;
+const btnSkipCSV      = document.getElementById('btn-skip-csv')!;
 
 const btnBackInput    = document.getElementById('btn-back-input')!;
 const btnFindRoute    = document.getElementById('btn-find-route') as HTMLButtonElement;
+const btnAddStop      = document.getElementById('btn-add-stop')!;
 const geocodeProgress = document.getElementById('geocode-progress')!;
 const progressLabel   = document.getElementById('progress-label')!;
 const progressCount   = document.getElementById('progress-count')!;
 const progressFill    = document.getElementById('progress-bar-fill')!;
 const reviewTbody     = document.getElementById('review-tbody') as HTMLTableSectionElement;
 const reviewError     = document.getElementById('review-error')!;
+const addStopPanel    = document.getElementById('add-stop-panel')!;
+const formAddStop     = document.getElementById('form-add-stop') as HTMLFormElement;
+const addNameInput    = document.getElementById('add-name') as HTMLInputElement;
+const addAddrInput    = document.getElementById('add-address') as HTMLInputElement;
+const addPhoneInput   = document.getElementById('add-phone') as HTMLInputElement;
+const addNotesInput   = document.getElementById('add-notes') as HTMLInputElement;
+const btnCancelAdd    = document.getElementById('btn-cancel-add')!;
 
 const btnBackReview   = document.getElementById('btn-back-review')!;
 const routeList       = document.getElementById('route-list') as HTMLOListElement;
@@ -60,12 +71,19 @@ const btnExportPrint  = document.getElementById('btn-export-print')!;
 const btnExportGMaps  = document.getElementById('btn-export-gmaps')!;
 const gMapsLegNote    = document.getElementById('gmaps-leg-note')!;
 
+// ── Autocomplete on start/end address inputs ──────────────────────────
+
+attachAutocomplete(inputStartAddr);
+attachAutocomplete(inputEndAddr);
+// Add-stop address input autocomplete is attached once (reused across opens)
+attachAutocomplete(addAddrInput);
+
 // ── Screen navigation ─────────────────────────────────────────────────
 
 function showScreen(el: HTMLElement): void {
   [screenInput, screenReview, screenRoute].forEach(s => s.classList.remove('active'));
   el.classList.add('active');
-  setTimeout(() => invalidateMaps(), 50); // let CSS paint before Leaflet resizes
+  setTimeout(() => invalidateMaps(), 50);
 }
 
 // ── Input screen ──────────────────────────────────────────────────────
@@ -74,20 +92,14 @@ let csvText = '';
 
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
-
-fileInput.addEventListener('change', () => {
-  const file = fileInput.files?.[0];
-  if (!file) return;
-  loadFile(file);
-});
-
+fileInput.addEventListener('change', () => { const f = fileInput.files?.[0]; if (f) loadFile(f); });
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault();
   dropZone.classList.remove('drag-over');
-  const file = e.dataTransfer?.files[0];
-  if (file) loadFile(file);
+  const f = e.dataTransfer?.files[0];
+  if (f) loadFile(f);
 });
 
 function loadFile(file: File): void {
@@ -101,6 +113,19 @@ function loadFile(file: File): void {
   reader.readAsText(file);
 }
 
+/** Shared setup before entering the review screen. */
+function initReviewState(startAddr: string): void {
+  state.startAddress  = startAddr;
+  state.endAddress    = inputEndAddr.value.trim() || startAddr;
+  state.departureTime = inputTime.value || '10:00';
+  state.depot         = null;
+  state.endDepot      = null;
+  state.matrix        = null;
+  state.route         = null;
+  nextStopId          = state.stops.length; // keep ID counter ahead of existing stops
+}
+
+// Load CSV → review
 formInput.addEventListener('submit', async e => {
   e.preventDefault();
   inputError.classList.add('hidden');
@@ -116,50 +141,105 @@ formInput.addEventListener('submit', async e => {
     showError(inputError, String(err));
     return;
   }
-  if (parseResult.warnings.length) {
-    console.warn('CSV warnings:', parseResult.warnings);
-  }
+  if (parseResult.warnings.length) console.warn('CSV warnings:', parseResult.warnings);
 
   const cityState = inferCityState(startAddr);
-  let nextId = 0;
+  nextStopId = 0;
 
-  state.startAddress   = startAddr;
-  state.endAddress     = inputEndAddr.value.trim() || startAddr;
-  state.departureTime  = inputTime.value || '10:00';
   state.stops = parseResult.stops.map(s => ({
     ...s,
-    id: String(nextId++),
+    id: String(nextStopId++),
     normalizedAddress: normalizeAddress(s.rawAddress, cityState),
     status: 'pending' as const,
   }));
-  state.depot    = null;
-  state.endDepot = null;
-  state.matrix   = null;
-  state.route    = null;
 
+  initReviewState(startAddr);
   showScreen(screenReview);
   initPreviewMap('map-preview');
   await runGeocodingPhase();
+});
+
+// Skip CSV → enter manually
+btnSkipCSV.addEventListener('click', () => {
+  inputError.classList.add('hidden');
+  const startAddr = inputStartAddr.value.trim();
+  if (!startAddr) { showError(inputError, 'Please enter a start address first.'); return; }
+
+  nextStopId = 0;
+  state.stops = [];
+  initReviewState(startAddr);
+  showScreen(screenReview);
+  initPreviewMap('map-preview');
+
+  // Geocode the depot, then show empty table and the add-stop panel
+  void geocodeDepot().then(() => {
+    renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave);
+    updatePreviewMarkers(state.stops, state.depot);
+    addStopPanel.classList.remove('hidden');
+    addNameInput.focus();
+    // No stops yet → Find Route disabled until at least one is added
+    updateFindRouteButton();
+  });
 });
 
 // ── Review screen ─────────────────────────────────────────────────────
 
 btnBackInput.addEventListener('click', () => showScreen(screenInput));
 
-async function runGeocodingPhase(): Promise<void> {
-  btnFindRoute.disabled = true;
-  reviewError.classList.add('hidden');
-  geocodeProgress.classList.remove('hidden');
-  progressLabel.textContent = 'Geocoding addresses…';
+// Add-stop panel toggle
+btnAddStop.addEventListener('click', () => {
+  const hidden = addStopPanel.classList.contains('hidden');
+  addStopPanel.classList.toggle('hidden', !hidden);
+  if (hidden) addNameInput.focus();
+});
 
-  // Geocode depot
-  const depotResult = await geocodeAddress(normalizeAddress(state.startAddress, inferCityState(state.startAddress)));
-  if (!depotResult) {
-    showError(reviewError, `Could not geocode start address: "${state.startAddress}". Please check it and try again.`);
-    geocodeProgress.classList.add('hidden');
+btnCancelAdd.addEventListener('click', () => {
+  addStopPanel.classList.add('hidden');
+  formAddStop.reset();
+});
+
+formAddStop.addEventListener('submit', async e => {
+  e.preventDefault();
+  const name    = addNameInput.value.trim();
+  const address = addAddrInput.value.trim();
+  if (!name || !address) return;
+
+  const cityState = inferCityState(state.startAddress);
+  const normalized = normalizeAddress(address, cityState);
+
+  const stop: Stop = {
+    id:               String(nextStopId++),
+    name,
+    phone:            addPhoneInput.value.trim(),
+    notes:            addNotesInput.value.trim(),
+    rawAddress:       address,
+    normalizedAddress: normalized,
+    status:           'pending',
+  };
+  state.stops.push(stop);
+
+  formAddStop.reset();
+  addStopPanel.classList.add('hidden');
+
+  // Geocode the new stop immediately
+  const result = await geocodeAddress(normalized);
+  stop.coords     = result?.coords;
+  stop.geocodedAs = result?.displayName;
+  stop.status     = result ? 'ok' : 'not-found';
+
+  renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave);
+  updatePreviewMarkers(state.stops, state.depot);
+  updateFindRouteButton();
+});
+
+async function geocodeDepot(): Promise<void> {
+  const normalized = normalizeAddress(state.startAddress, inferCityState(state.startAddress));
+  const result = await geocodeAddress(normalized);
+  if (!result) {
+    showError(reviewError, `Could not geocode start address: "${state.startAddress}". Please go back and check it.`);
     return;
   }
-  state.depot = { rawAddress: state.startAddress, normalizedAddress: normalizeAddress(state.startAddress, inferCityState(state.startAddress)), coords: depotResult.coords };
+  state.depot = { rawAddress: state.startAddress, normalizedAddress: normalized, coords: result.coords };
 
   if (state.endAddress !== state.startAddress) {
     const endResult = await geocodeAddress(state.endAddress);
@@ -167,6 +247,16 @@ async function runGeocodingPhase(): Promise<void> {
       ? { rawAddress: state.endAddress, normalizedAddress: state.endAddress, coords: endResult.coords }
       : state.depot;
   }
+}
+
+async function runGeocodingPhase(): Promise<void> {
+  btnFindRoute.disabled = true;
+  reviewError.classList.add('hidden');
+  geocodeProgress.classList.remove('hidden');
+  progressLabel.textContent = 'Geocoding addresses…';
+
+  await geocodeDepot();
+  if (!state.depot) { geocodeProgress.classList.add('hidden'); return; }
 
   // Geocode stops
   const addresses = state.stops.map(s => s.normalizedAddress);
@@ -181,10 +271,8 @@ async function runGeocodingPhase(): Promise<void> {
     state.stops[i].status     = r ? 'ok' : 'not-found';
   });
 
-  progressLabel.textContent = 'Fetching drive times…';
+  progressLabel.textContent = 'Checking for outliers…';
   progressFill.style.width = '100%';
-
-  // Fetch OSRM matrix and run outlier detection
   await runOutlierDetection();
 
   geocodeProgress.classList.add('hidden');
@@ -197,14 +285,10 @@ async function runOutlierDetection(): Promise<void> {
   const geocodedStops = state.stops.filter(s => s.coords && s.status !== 'not-found');
   if (geocodedStops.length < 2) return;
 
-  const allCoords = geocodedStops.map(s => s.coords!);
   try {
-    const matrix = await fetchDurationMatrix(allCoords);
+    const matrix = await fetchDurationMatrix(geocodedStops.map(s => s.coords!));
     geocodedStops.forEach((stop, i) => {
-      const minSec = minDriveTimeTo(matrix, i);
-      if (minSec > OUTLIER_THRESHOLD_SEC) {
-        stop.status = 'outlier';
-      }
+      if (minDriveTimeTo(matrix, i) > OUTLIER_THRESHOLD_SEC) stop.status = 'outlier';
     });
   } catch (err) {
     console.warn('Could not fetch OSRM matrix for outlier check:', err);
@@ -219,25 +303,22 @@ async function onAddressSave(stopId: string, newAddress: string): Promise<void> 
   stop.status = 'pending';
   updateTableRow(reviewTbody, stop);
 
-  const geoResult = await geocodeAddress(newAddress);
-  stop.coords     = geoResult?.coords;
-  stop.geocodedAs = geoResult?.displayName;
-  stop.status     = geoResult ? 'user-edited' : 'not-found';
+  const result = await geocodeAddress(newAddress);
+  stop.coords     = result?.coords;
+  stop.geocodedAs = result?.displayName;
+  stop.status     = result ? 'user-edited' : 'not-found';
   updateTableRow(reviewTbody, stop);
   updatePreviewMarkers(state.stops, state.depot);
   updateFindRouteButton();
 }
 
 function updateFindRouteButton(): void {
-  const hasFlagged = state.stops.some(
-    s => s.status === 'not-found' || s.status === 'outlier',
-  );
-  btnFindRoute.disabled = hasFlagged;
+  const hasFlagged = state.stops.some(s => s.status === 'not-found' || s.status === 'outlier');
+  const hasStops   = state.stops.length > 0;
+  btnFindRoute.disabled = hasFlagged || !hasStops;
 }
 
-btnFindRoute.addEventListener('click', () => {
-  void runRouteSolver();
-});
+btnFindRoute.addEventListener('click', () => { void runRouteSolver(); });
 
 // ── Route solver ──────────────────────────────────────────────────────
 
@@ -245,17 +326,9 @@ async function runRouteSolver(): Promise<void> {
   const depot    = state.depot!;
   const endDepot = state.endDepot ?? depot;
   const stops    = state.stops.filter(s => s.coords);
-
-  // Build the coordinate list: depot + stops + endDepot (if different)
   const sameDepot = !state.endDepot;
-  const allNodes  = sameDepot
-    ? [depot, ...stops]
-    : [depot, ...stops, endDepot];
-
-  const coords = allNodes.map(n => {
-    const c = (n as Depot).coords ?? (n as Stop).coords!;
-    return c;
-  });
+  const allNodes  = sameDepot ? [depot, ...stops] : [depot, ...stops, endDepot];
+  const coords    = allNodes.map(n => (n as Depot).coords ?? (n as Stop).coords!);
 
   let matrix: DurationMatrix;
   try {
@@ -266,12 +339,9 @@ async function runRouteSolver(): Promise<void> {
   }
 
   state.matrix = matrix;
-
   const startIdx = 0;
   const endIdx   = sameDepot ? 0 : allNodes.length - 1;
-
-  const initialRoute = nearestNeighbor(matrix, startIdx, endIdx);
-  const optimizedRoute = twoOpt(initialRoute, matrix);
+  const optimizedRoute = twoOpt(nearestNeighbor(matrix, startIdx, endIdx), matrix);
 
   const orderedStops = optimizedRoute.map(i => allNodes[i]);
   const segments = [];
@@ -301,8 +371,7 @@ btnBackReview.addEventListener('click', () => showScreen(screenReview));
 
 function setupExportButtons(): void {
   if (!state.route) return;
-
-  btnExportCSV.onclick = () => exportRouteCSV(state.route!, state.departureTime);
+  btnExportCSV.onclick   = () => exportRouteCSV(state.route!, state.departureTime);
   btnExportPrint.onclick = () => exportPrintSheet(state.route!, state.departureTime);
 
   const legs = buildGoogleMapsLegs(state.route);
@@ -311,7 +380,6 @@ function setupExportButtons(): void {
     btnExportGMaps.onclick = () => window.open(legs[0].url, '_blank');
     gMapsLegNote.classList.add('hidden');
   } else if (legs.length > 1) {
-    // Replace the single button with one per leg
     const toolbar = btnExportGMaps.parentElement!;
     btnExportGMaps.remove();
     legs.forEach(leg => {

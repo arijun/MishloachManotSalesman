@@ -1,20 +1,24 @@
 /**
  * Address normalization helpers.
- *
- * City inference rule: if a raw address appears to have fewer than two
- * comma-separated components (e.g. "123 Oak St"), or the second component
- * looks like only a state abbreviation or zip code, append the city and state
- * from the start address.
  */
 
-const STATE_ABBR_RE = /^[A-Z]{2}(\s+\d{5}(-\d{4})?)?$/;
-const ZIP_ONLY_RE   = /^\d{5}(-\d{4})?$/;
+// ── City injection ────────────────────────────────────────────────────
+//
+// Rule: only inject city+state when:
+//   • The address has NO commas at all ("123 Oak St") — definitely bare street
+//   • OR exactly 2 comma-parts and the second is a bare state abbreviation
+//     ("123 Oak St, WA") — clearly missing city
+//
+// We do NOT inject when the second part is "WA 98118" (state+zip), because
+// that format means the city is embedded in the first part ("Street City, ST ZIP"),
+// which is very common in Seattle-area addresses pasted from web sources.
+
+const STATE_ALONE_RE = /^[A-Z]{2}$/;
 
 export function inferCityState(startAddress: string): { city: string; state: string } {
-  // Expect "..., City, ST" or "..., City, ST ZIP"
   const parts = startAddress.split(',').map(p => p.trim());
   if (parts.length >= 3) {
-    const statePart = parts[parts.length - 1].trim().split(/\s+/)[0]; // first token = state abbr
+    const statePart = parts[parts.length - 1].trim().split(/\s+/)[0];
     const city = parts[parts.length - 2].trim();
     return { city, state: statePart };
   }
@@ -26,11 +30,13 @@ export function inferCityState(startAddress: string): { city: string; state: str
 
 export function needsCityInjection(address: string): boolean {
   const parts = address.split(',').map(p => p.trim());
-  if (parts.length < 2) return true;
-  const second = parts[1];
-  // Only a state abbreviation or zip on the second comma-part → missing city
-  if (STATE_ABBR_RE.test(second) || ZIP_ONLY_RE.test(second)) return true;
-  return false;
+  // No commas → bare street address, definitely needs city
+  if (parts.length === 1) return true;
+  // 3+ parts → has enough structure (Street, City, State or similar)
+  if (parts.length >= 3) return false;
+  // 2 parts: only inject when second part is a bare state abbreviation ("WA"),
+  // not "WA 98118" (state+zip means city is embedded in first part).
+  return STATE_ALONE_RE.test(parts[1]);
 }
 
 export function normalizeAddress(

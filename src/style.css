@@ -149,7 +149,57 @@ input[type="time"]:focus {
   margin-bottom: 1rem;
 }
 
+/* Input screen action row */
+.input-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+
+/* ── Autocomplete dropdown ───────────────────────────────────────── */
+.ac-dropdown {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  list-style: none;
+  padding: 0.25rem 0;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 9999;
+}
+.ac-item {
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+}
+.ac-item:hover, .ac-item.active { background: #eff6ff; }
+.ac-line1 { display: block; font-size: 0.88rem; }
+.ac-line2 { display: block; font-size: 0.78rem; color: var(--color-muted); }
+
 /* ── Screen 2 — Review ───────────────────────────────────────────── */
+/* Add-stop panel */
+.add-stop-panel {
+  padding: 0.75rem 1rem;
+  background: #f0f7ff;
+  border-bottom: 1px solid #bfdbfe;
+  flex-shrink: 0;
+}
+.add-stop-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.field-sm { margin-bottom: 0; flex: 1; min-width: 160px; }
+.field-addr { flex: 2; min-width: 260px; }
+.add-stop-actions { display: flex; gap: 0.5rem; }
+
+.review-header-right { display: flex; align-items: center; gap: 0.5rem; }
+
+/* Original address sub-line */
+.original-addr {
+  font-size: 0.77rem;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
 .review-header {
   display: flex;
   align-items: center;

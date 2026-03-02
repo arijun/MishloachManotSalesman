@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(/opt/homebrew/bin/node:*)",
+      "Bash(/opt/homebrew/bin/npm create:*)",
+      "Bash(/opt/homebrew/bin/npx tsc:*)",
+      "Bash(/opt/homebrew/bin/npm run:*)"
+    ]
+  }
+}

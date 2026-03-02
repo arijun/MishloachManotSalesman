@@ -16,17 +16,22 @@ function escapeHtml(s: string): string {
 
 /**
  * Render the "geocoded as" sub-line beneath the address.
- * Only shown when the geocoder returned a displayName. Styled muted so it
- * doesn't compete with the address text, but visible enough for users to
- * notice if the geocoder resolved to something unexpected.
  */
 function renderGeocodedAs(stop: Stop): string {
   if (!stop.geocodedAs) return '';
-  // Truncate very long display names (Nominatim returns full hierarchy)
   const short = stop.geocodedAs.split(',').slice(0, 3).join(',');
-  return `<div class="geocoded-as" title="${escapeHtml(stop.geocodedAs)}">
-    Geocoded as: ${escapeHtml(short)}
-  </div>`;
+  return `<div class="geocoded-as" title="${escapeHtml(stop.geocodedAs)}">Geocoded as: ${escapeHtml(short)}</div>`;
+}
+
+/**
+ * Render the "original" sub-line when the displayed address differs from
+ * what came from the CSV. This happens after city injection or manual edits,
+ * letting drivers see the original (e.g. "4846A S Morgan St" which carries
+ * unit info) even after the address was adjusted for geocoding.
+ */
+function renderOriginalAddr(stop: Stop): string {
+  if (stop.rawAddress === stop.normalizedAddress) return '';
+  return `<div class="original-addr" title="Original from CSV">Orig: ${escapeHtml(stop.rawAddress)}</div>`;
 }
 
 export function renderReviewTable(
@@ -62,6 +67,7 @@ export function renderReviewTable(
       <td>${escapeHtml(stop.name)}</td>
       <td class="addr-cell">
         <span class="addr-text">${escapeHtml(stop.normalizedAddress)}</span>
+        ${renderOriginalAddr(stop)}
         ${renderGeocodedAs(stop)}
         ${isFlagged ? renderInlineEdit(stop) : ''}
       </td>
@@ -121,14 +127,18 @@ export function updateTableRow(tbody: HTMLTableSectionElement, stop: Stop): void
     const addrText = addrCell.querySelector<HTMLElement>('.addr-text');
     if (addrText) addrText.textContent = stop.normalizedAddress;
 
-    // Update or insert geocodedAs line
-    let geocodedEl = addrCell.querySelector<HTMLElement>('.geocoded-as');
+    // Refresh original-addr line
+    const existingOrig = addrCell.querySelector('.original-addr');
+    const newOrigHtml = renderOriginalAddr(stop);
+    if (existingOrig) existingOrig.outerHTML = newOrigHtml || '';
+    else if (newOrigHtml) addrText?.insertAdjacentHTML('afterend', newOrigHtml);
+
+    // Refresh geocoded-as line
+    const existingGeo = addrCell.querySelector('.geocoded-as');
     const newGeoHtml = renderGeocodedAs(stop);
-    if (geocodedEl) {
-      geocodedEl.outerHTML = newGeoHtml;
-    } else if (newGeoHtml) {
-      addrText?.insertAdjacentHTML('afterend', newGeoHtml);
-    }
+    if (existingGeo) existingGeo.outerHTML = newGeoHtml || '';
+    else if (newGeoHtml) addrCell.querySelector('.original-addr, .addr-text')
+      ?.insertAdjacentHTML('afterend', newGeoHtml);
   }
 
   const statusCell = tr.children[5] as HTMLTableCellElement;
