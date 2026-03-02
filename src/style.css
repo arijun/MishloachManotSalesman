@@ -600,25 +600,29 @@ input[type="time"]:focus {
     font-style: italic;
   }
 
-  /* Route screen — bottom sheet */
+  /* Route screen — bottom sheet.
+     Grid stacks map and sidebar in the same cell; sidebar overlays from the
+     bottom with z-index. Avoids position:absolute fights with Leaflet's
+     .leaflet-container { position: relative } class. */
   .sheet-handle { display: flex; }
 
-  .route-layout { position: relative; }
+  .route-layout {
+    display: grid;
+    grid-template-rows: 1fr;
+    grid-template-columns: 1fr;
+  }
 
   #map-route {
-    position: absolute;
-    inset: 0;
-    height: 100%;
+    grid-area: 1 / 1;
+    min-height: 0;
     flex: none;
   }
 
-  /* Sidebar sits at the bottom with only the handle+header peeking.
-     Height animates upward on open — no transform/overflow-clip issues. */
   #route-sidebar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    grid-area: 1 / 1;
+    align-self: end;
+    position: relative; /* required for z-index */
+    z-index: 10;
     width: 100%;
     height: 5.5rem;
     transition: height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
@@ -626,7 +630,6 @@ input[type="time"]:focus {
     border-top: none;
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -2px 20px rgba(0,0,0,0.15);
-    z-index: 10;
   }
   #route-sidebar.sheet-open { height: 70vh; }
 }
