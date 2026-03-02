@@ -1,6 +1,6 @@
 import type { Coords, DurationMatrix } from '../types.ts';
 
-const OSRM_BASE = 'http://router.project-osrm.org/table/v1/driving';
+const OSRM_BASE = 'https://router.project-osrm.org/table/v1/driving';
 
 interface OSRMTableResponse {
   code: string;
