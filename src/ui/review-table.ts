@@ -4,13 +4,6 @@ import type { AutocompleteOptions } from './autocomplete.ts';
 
 type OnSaveCallback = (stopId: string, newAddress: string) => void;
 
-const STATUS_CHIP: Record<string, string> = {
-  ok:           '<span class="chip chip-ok">OK</span>',
-  pending:      '<span class="chip chip-pending">Pending…</span>',
-  'not-found':  '<span class="chip chip-error">Not found</span>',
-  outlier:      '<span class="chip chip-warn">Outlier</span>',
-  'user-edited':'<span class="chip chip-edited">Edited</span>',
-};
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -54,7 +47,6 @@ export function renderReviewTable(
       <td>${escapeHtml(depot.normalizedAddress)}</td>
       <td>—</td>
       <td>—</td>
-      <td><span class="chip chip-ok">Depot</span></td>
     `;
     tbody.appendChild(tr);
   }
@@ -76,7 +68,6 @@ export function renderReviewTable(
       </td>
       <td>${escapeHtml(stop.phone)}</td>
       <td>${escapeHtml(stop.notes)}</td>
-      <td>${STATUS_CHIP[stop.status] ?? ''}</td>
     `;
 
     if (isFlagged) {
@@ -146,6 +137,4 @@ export function updateTableRow(tbody: HTMLTableSectionElement, stop: Stop): void
       ?.insertAdjacentHTML('afterend', newGeoHtml);
   }
 
-  const statusCell = tr.children[5] as HTMLTableCellElement;
-  statusCell.innerHTML = STATUS_CHIP[stop.status] ?? '';
 }

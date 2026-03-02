@@ -281,8 +281,9 @@ input[type="time"]:focus {
   vertical-align: top;
 }
 #review-table tr:hover td { background: #f5f4f0; }
-#review-table tr.flagged td { background: #fff7ed; }
-#review-table tr.flagged:hover td { background: #ffedd5; }
+#review-table tr.flagged td { background: #fef2f2; }
+#review-table tr.flagged td:first-child { border-left: 3px solid var(--color-danger); }
+#review-table tr.flagged:hover td { background: #fee2e2; }
 
 /* Status chips */
 .chip {
@@ -311,7 +312,7 @@ input[type="time"]:focus {
 .inline-edit-form input { font-size: 0.85rem; padding: 0.3rem 0.5rem; }
 .inline-edit-actions { display: flex; gap: 0.4rem; margin-top: 0.2rem; }
 
-/* Shared-route banner */
+/* Collaboration banner (review screen, shared list) */
 .shared-banner {
   background: #fef9c3;
   border-bottom: 1px solid #fde68a;

@@ -86,7 +86,6 @@ const btnExportPrint  = document.getElementById('btn-export-print')!;
 const btnExportGMaps  = document.getElementById('btn-export-gmaps')!;
 const gMapsLegNote    = document.getElementById('gmaps-leg-note')!;
 const btnShare             = document.getElementById('btn-share')!;
-const sharedBanner         = document.getElementById('shared-banner')!;
 const btnShareReview       = document.getElementById('btn-share-review')!;
 const sharedReviewBanner   = document.getElementById('shared-review-banner')!;
 
@@ -495,7 +494,6 @@ function loadSharedRouteView(decoded: DecodedRoute): void {
   nextStopId  = state.stops.length;
   biasCoords ??= state.depot.coords;
 
-  sharedBanner.classList.remove('hidden');
   showScreen(screenRoute);
   initRouteMap('map-route');
   renderRoute(state.route!);
