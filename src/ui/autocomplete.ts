@@ -1,11 +1,27 @@
 /**
  * Address autocomplete using Photon (Komoot) — no API key required.
  * Attaches to any <input> element and shows a fixed-positioned dropdown.
+ *
+ * Supports a `getBias` option: a callback returning {lat, lng} that is passed
+ * to Photon as a soft location bias on every request. When set, Photon ranks
+ * nearby results higher without hard-filtering distant ones.
  */
 
-const PHOTON_URL = 'https://photon.komoot.io/api/';
+import type { Coords } from '../types.ts';
+
+const PHOTON_URL  = 'https://photon.komoot.io/api/';
 const DEBOUNCE_MS = 300;
-const MIN_CHARS = 4;
+const MIN_CHARS   = 4;
+
+export interface AutocompleteOptions {
+  /** Called when the user selects a suggestion. Receives the canonical address
+   *  string and, when available, the coordinates from Photon's geometry. */
+  onSelect?: (address: string, coords?: Coords) => void;
+  /** Return current bias coordinates for every autocomplete request.
+   *  Photon uses these as a soft proximity hint — nearby results are ranked
+   *  higher but far-away results are not hard-filtered. */
+  getBias?: () => Coords | null;
+}
 
 interface PhotonProperties {
   housenumber?: string;
@@ -19,12 +35,16 @@ interface PhotonProperties {
 }
 
 interface Suggestion {
-  address: string; // canonical full address filled into the input on select
-  line1: string;   // house + street (shown bold in dropdown)
-  line2: string;   // city, state, zip (shown muted)
+  address: string;   // canonical full address filled into the input on select
+  line1: string;     // house + street (shown in dropdown)
+  line2: string;     // city, state, zip (shown muted)
+  coords?: Coords;   // from Photon geometry — passed to onSelect
 }
 
-function buildSuggestion(props: PhotonProperties): Suggestion | null {
+function buildSuggestion(
+  props: PhotonProperties,
+  geometry: [number, number], // [lng, lat]
+): Suggestion | null {
   const streetPart =
     props.housenumber && props.street
       ? `${props.housenumber} ${props.street}`
@@ -32,10 +52,11 @@ function buildSuggestion(props: PhotonProperties): Suggestion | null {
   if (!streetPart) return null;
 
   const cityParts = [props.city, props.state, props.postcode].filter(Boolean);
-  const line1 = streetPart;
-  const line2 = cityParts.join(', ');
-  const address = [streetPart, ...cityParts].join(', ');
-  return { address, line1, line2 };
+  const line1     = streetPart;
+  const line2     = cityParts.join(', ');
+  const address   = [streetPart, ...cityParts].join(', ');
+  const coords: Coords = { lat: geometry[1], lng: geometry[0] };
+  return { address, line1, line2, coords };
 }
 
 function escHtml(s: string): string {
@@ -48,7 +69,7 @@ function escHtml(s: string): string {
  */
 export function attachAutocomplete(
   input: HTMLInputElement,
-  onSelect?: (address: string) => void,
+  options?: AutocompleteOptions,
 ): () => void {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let dropdown: HTMLUListElement | null = null;
@@ -90,8 +111,8 @@ export function attachAutocomplete(
     if (!dropdown) return;
     const r = input.getBoundingClientRect();
     dropdown.style.position = 'fixed';
-    dropdown.style.top  = `${r.bottom + 2}px`;
-    dropdown.style.left = `${r.left}px`;
+    dropdown.style.top   = `${r.bottom + 2}px`;
+    dropdown.style.left  = `${r.left}px`;
     dropdown.style.width = `${r.width}px`;
   }
 
@@ -106,7 +127,7 @@ export function attachAutocomplete(
     const s = suggestions[i];
     if (!s) return;
     input.value = s.address;
-    onSelect?.(s.address);
+    options?.onSelect?.(s.address, s.coords);
     closeDropdown();
   }
 
@@ -123,12 +144,25 @@ export function attachAutocomplete(
     if (q.length < MIN_CHARS || destroyed) { closeDropdown(); return; }
     try {
       const params = new URLSearchParams({ q, limit: '5', lang: 'en' });
+
+      // Apply location bias if available
+      const bias = options?.getBias?.();
+      if (bias) {
+        params.set('lat', String(bias.lat));
+        params.set('lon', String(bias.lng));
+      }
+
       const res = await fetch(`${PHOTON_URL}?${params}`);
       if (!res.ok || destroyed) return;
-      const data = await res.json() as { features: { properties: PhotonProperties }[] };
+
+      const data = await res.json() as {
+        features: { properties: PhotonProperties; geometry: { coordinates: [number, number] } }[];
+      };
+
       const items = (data.features ?? [])
-        .map(f => buildSuggestion(f.properties))
+        .map(f => buildSuggestion(f.properties, f.geometry.coordinates))
         .filter((s): s is Suggestion => s !== null);
+
       openDropdown(items);
     } catch { /* network errors are silent */ }
   }
@@ -161,7 +195,6 @@ export function attachAutocomplete(
   }
 
   function onBlur(): void {
-    // Small delay so the mousedown-on-item fires before blur closes the dropdown
     setTimeout(closeDropdown, 150);
   }
 

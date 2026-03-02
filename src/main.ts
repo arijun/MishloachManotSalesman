@@ -12,6 +12,7 @@ import { renderReviewTable, updateTableRow } from './ui/review-table.ts';
 import { renderRouteList } from './ui/route-list.ts';
 import { exportRouteCSV, exportPrintSheet, buildGoogleMapsLegs } from './io/export.ts';
 import { attachAutocomplete } from './ui/autocomplete.ts';
+import type { AutocompleteOptions } from './ui/autocomplete.ts';
 
 // ── State ─────────────────────────────────────────────────────────────
 
@@ -28,6 +29,13 @@ const state: AppState = {
 
 let nextStopId = 0;
 const OUTLIER_THRESHOLD_SEC = 45 * 60;
+
+// Shared location bias for autocomplete. Set as soon as the start address is
+// resolved (either via autocomplete selection or after geocoding the depot).
+// Passed as a soft hint to Photon so delivery address suggestions are ranked
+// toward the right city without hard-filtering legitimate nearby suburbs.
+let biasCoords: import('./types.ts').Coords | null = null;
+const getBias = () => biasCoords;
 
 // ── DOM refs ──────────────────────────────────────────────────────────
 
@@ -71,12 +79,22 @@ const btnExportPrint  = document.getElementById('btn-export-print')!;
 const btnExportGMaps  = document.getElementById('btn-export-gmaps')!;
 const gMapsLegNote    = document.getElementById('gmaps-leg-note')!;
 
-// ── Autocomplete on start/end address inputs ──────────────────────────
+// ── Autocomplete on address inputs ───────────────────────────────────
+//
+// Start address: captures coords from the selected suggestion so we can
+// bias all subsequent delivery-address lookups to the right city.
+// End address: no bias needed (usually same city as start; user types it).
+// Delivery inputs: always use getBias so results favour the delivery area.
 
-attachAutocomplete(inputStartAddr);
-attachAutocomplete(inputEndAddr);
-// Add-stop address input autocomplete is attached once (reused across opens)
-attachAutocomplete(addAddrInput);
+const deliveryAcOptions: AutocompleteOptions = { getBias };
+
+attachAutocomplete(inputStartAddr, {
+  onSelect: (_address, coords) => {
+    if (coords) biasCoords = coords;
+  },
+});
+attachAutocomplete(inputEndAddr, deliveryAcOptions);
+attachAutocomplete(addAddrInput, deliveryAcOptions);
 
 // ── Screen navigation ─────────────────────────────────────────────────
 
@@ -173,7 +191,7 @@ btnSkipCSV.addEventListener('click', () => {
 
   // Geocode the depot, then show empty table and the add-stop panel
   void geocodeDepot().then(() => {
-    renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave);
+    renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave, deliveryAcOptions);
     updatePreviewMarkers(state.stops, state.depot);
     addStopPanel.classList.remove('hidden');
     addNameInput.focus();
@@ -227,7 +245,7 @@ formAddStop.addEventListener('submit', async e => {
   stop.geocodedAs = result?.displayName;
   stop.status     = result ? 'ok' : 'not-found';
 
-  renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave);
+  renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave, deliveryAcOptions);
   updatePreviewMarkers(state.stops, state.depot);
   updateFindRouteButton();
 });
@@ -240,6 +258,9 @@ async function geocodeDepot(): Promise<void> {
     return;
   }
   state.depot = { rawAddress: state.startAddress, normalizedAddress: normalized, coords: result.coords };
+  // Ensure bias is set even if the user typed the start address instead of
+  // selecting from the autocomplete dropdown.
+  biasCoords ??= result.coords;
 
   if (state.endAddress !== state.startAddress) {
     const endResult = await geocodeAddress(state.endAddress);
@@ -276,7 +297,7 @@ async function runGeocodingPhase(): Promise<void> {
   await runOutlierDetection();
 
   geocodeProgress.classList.add('hidden');
-  renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave);
+  renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave, deliveryAcOptions);
   updatePreviewMarkers(state.stops, state.depot);
   updateFindRouteButton();
 }

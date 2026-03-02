@@ -1,4 +1,6 @@
 import type { Stop } from '../types.ts';
+import { attachAutocomplete } from './autocomplete.ts';
+import type { AutocompleteOptions } from './autocomplete.ts';
 
 type OnSaveCallback = (stopId: string, newAddress: string) => void;
 
@@ -39,6 +41,7 @@ export function renderReviewTable(
   stops: Stop[],
   depot: { normalizedAddress: string } | null,
   onSave: OnSaveCallback,
+  acOptions?: AutocompleteOptions,
 ): void {
   tbody.innerHTML = '';
 
@@ -80,6 +83,8 @@ export function renderReviewTable(
       const form = tr.querySelector<HTMLElement>('.inline-edit-form')!;
       const input = form.querySelector<HTMLInputElement>('.edit-addr-input')!;
       const saveBtn = form.querySelector<HTMLButtonElement>('.btn-save-edit')!;
+
+      if (acOptions) attachAutocomplete(input, acOptions);
 
       saveBtn.addEventListener('click', () => {
         const val = input.value.trim();
