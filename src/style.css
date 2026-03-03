@@ -601,30 +601,19 @@ input[type="time"]:focus {
   }
 
   /* Route screen — bottom sheet.
-     Grid stacks map and sidebar in the same cell; sidebar overlays from the
-     bottom with z-index. Avoids position:absolute fights with Leaflet's
-     .leaflet-container { position: relative } class. */
+     Sidebar uses position:fixed so it's taken out of flex flow entirely —
+     the map then naturally fills the whole route-layout. Fixed also avoids
+     every z-index / stacking-context / Leaflet-inline-style conflict. */
   .sheet-handle { display: flex; }
 
-  .route-layout {
-    display: grid;
-    grid-template-rows: 1fr;
-    grid-template-columns: 1fr;
-  }
-
-  #map-route {
-    grid-area: 1 / 1;
-    min-height: 0;
-    flex: none;
-  }
-
   #route-sidebar {
-    grid-area: 1 / 1;
-    align-self: end;
-    position: relative; /* required for z-index */
-    z-index: 10;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     width: 100%;
     height: 5.5rem;
+    z-index: 1000;
     transition: height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
     border-right: none;
     border-top: none;
