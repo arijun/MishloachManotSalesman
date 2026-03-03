@@ -282,3 +282,45 @@ export function getReviewHash(): string | null {
 export function setReviewHash(encoded: string): void {
   history.replaceState(null, '', REVIEW_HASH_PREFIX + encoded);
 }
+
+// ── URL shortening ─────────────────────────────────────────────────────
+
+/**
+ * Shorten a URL via is.gd. Falls back to the original URL on any error
+ * (network failure, CORS, rate limit, etc.).
+ */
+export async function shortenUrl(url: string): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://is.gd/create.php?format=json&url=${encodeURIComponent(url)}`,
+      { signal: AbortSignal.timeout(5000) },
+    );
+    if (!res.ok) return url;
+    const data = await res.json() as { shorturl?: string };
+    return data.shorturl ?? url;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Share a URL using the Web Share API on mobile, or copy to clipboard on desktop.
+ * Returns true if sharing/copying succeeded.
+ */
+export async function shareOrCopy(url: string, title = 'Delivery route'): Promise<boolean> {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url });
+      return true;
+    } catch {
+      // User cancelled or share failed — fall through to clipboard
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    return true;
+  } catch {
+    prompt('Copy this link:', url);
+    return false;
+  }
+}

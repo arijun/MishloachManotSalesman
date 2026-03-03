@@ -405,6 +405,9 @@ input[type="time"]:focus {
 .toolbar-popover-item:hover { background: #f5f4f0; }
 .toolbar-popover-item.share-item { color: #166534; }
 
+/* Share icon in export button — hidden on desktop, shown on mobile */
+.share-icon { display: none; }
+
 /* Sheet handle (hidden on desktop, drag grip on mobile) */
 .sheet-handle {
   display: none;
@@ -498,6 +501,10 @@ input[type="time"]:focus {
   /* Review header — icon-only secondary buttons */
   .review-header .btn-label { display: none; }
   .review-header h2 { font-size: 0.9rem; }
+
+  /* Export button — show share icon, hide text label */
+  #btn-export-toggle .btn-label { display: none; }
+  #btn-export-toggle .share-icon { display: inline-block; vertical-align: middle; }
 
   /* Review table — collapsed accordion rows */
   .review-layout { flex-direction: column; }

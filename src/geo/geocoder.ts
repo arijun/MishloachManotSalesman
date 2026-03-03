@@ -186,16 +186,21 @@ export async function geocodeAddress(address: string): Promise<GeocoderResult | 
 
 /**
  * Geocode a list of addresses sequentially at ≤1 req/s (Nominatim policy).
+ * `onEach` is called immediately after each address resolves, before the
+ * rate-limit delay, so callers can update the UI incrementally.
  */
 export async function geocodeBatch(
   addresses: string[],
   onProgress?: GeocoderProgressCallback,
+  onEach?: (index: number, result: GeocoderResult | null) => void,
 ): Promise<(GeocoderResult | null)[]> {
   const results: (GeocoderResult | null)[] = [];
 
   for (let i = 0; i < addresses.length; i++) {
     const start = Date.now();
-    results.push(await geocodeAddress(addresses[i]));
+    const result = await geocodeAddress(addresses[i]);
+    results.push(result);
+    onEach?.(i, result);
     onProgress?.(i + 1, addresses.length);
 
     const elapsed = Date.now() - start;

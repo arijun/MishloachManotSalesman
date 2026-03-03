@@ -14,6 +14,7 @@ import { exportRouteCSV, exportPrintSheet, buildGoogleMapsLegs } from './io/expo
 import {
   encodeRoute, decodeRoute, getSharedHash, setRouteHash,
   encodeReviewState, decodeReviewState, getReviewHash, setReviewHash,
+  shortenUrl, shareOrCopy,
 } from './io/share.ts';
 import type { DecodedRoute, DecodedReviewState } from './io/share.ts';
 import { attachAutocomplete } from './ui/autocomplete.ts';
@@ -135,15 +136,35 @@ dropZone.addEventListener('drop', e => {
   if (f) loadFile(f);
 });
 
+function setFileLoaded(name: string): void {
+  dropZoneText.classList.add('hidden');
+  dropZoneFile.textContent = name;
+  dropZoneFile.classList.remove('hidden');
+}
+
 function loadFile(file: File): void {
-  const reader = new FileReader();
-  reader.onload = ev => {
-    csvText = (ev.target?.result as string) ?? '';
-    dropZoneText.classList.add('hidden');
-    dropZoneFile.textContent = file.name;
-    dropZoneFile.classList.remove('hidden');
-  };
-  reader.readAsText(file);
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  if (['xlsx', 'xls', 'ods'].includes(ext)) {
+    void (async () => {
+      try {
+        const { read, utils } = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const wb = read(buffer);
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        csvText = utils.sheet_to_csv(ws);
+        setFileLoaded(file.name);
+      } catch (err) {
+        showError(inputError, `Could not read spreadsheet: ${String(err)}`);
+      }
+    })();
+  } else {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      csvText = (ev.target?.result as string) ?? '';
+      setFileLoaded(file.name);
+    };
+    reader.readAsText(file);
+  }
 }
 
 /** Shared setup before entering the review screen. */
@@ -294,24 +315,32 @@ async function runGeocodingPhase(): Promise<void> {
   await geocodeDepot();
   if (!state.depot) { geocodeProgress.classList.add('hidden'); return; }
 
-  // Geocode stops
-  const addresses = state.stops.map(s => s.normalizedAddress);
-  const geoResults = await geocodeBatch(addresses, (done, total) => {
-    progressFill.style.width = `${(done / total) * 100}%`;
-    progressCount.textContent = `${done} / ${total}`;
-  });
+  // Show depot pin immediately and render pending rows so the user sees names
+  updatePreviewMarkers(state.stops, state.depot);
+  renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave, deliveryAcOptions);
 
-  geoResults.forEach((r, i) => {
-    state.stops[i].coords     = r?.coords;
-    state.stops[i].geocodedAs = r?.displayName;
-    state.stops[i].status     = r ? 'ok' : 'not-found';
-  });
+  // Geocode stops progressively, updating each row and map pin as results arrive
+  await geocodeBatch(
+    state.stops.map(s => s.normalizedAddress),
+    (done, total) => {
+      progressFill.style.width = `${(done / total) * 100}%`;
+      progressCount.textContent = `${done} / ${total}`;
+    },
+    (i, result) => {
+      state.stops[i].coords     = result?.coords;
+      state.stops[i].geocodedAs = result?.displayName;
+      state.stops[i].status     = result ? 'ok' : 'not-found';
+      updateTableRow(reviewTbody, state.stops[i]);
+      updatePreviewMarkers(state.stops, state.depot);
+    },
+  );
 
   progressLabel.textContent = 'Checking for outliers…';
   progressFill.style.width = '100%';
   await runOutlierDetection();
 
   geocodeProgress.classList.add('hidden');
+  // Re-render fully so outlier flags and inline-edit forms appear correctly
   renderReviewTable(reviewTbody, state.stops, state.depot, onAddressSave, deliveryAcOptions);
   updatePreviewMarkers(state.stops, state.depot);
   updateFindRouteButton();
@@ -486,27 +515,20 @@ btnShareReview.addEventListener('click', () => {
   if (!state.depot) return;
   const encoded = encodeReviewState(state.depot, state.endDepot, state.stops, state.departureTime);
   setReviewHash(encoded);
-  navigator.clipboard.writeText(window.location.href).then(() => {
-    btnShareReview.textContent = 'Copied!';
+  void (async () => {
+    const short = await shortenUrl(window.location.href);
+    await shareOrCopy(short, 'Delivery address list');
     btnShareReview.classList.add('copied');
-    setTimeout(() => {
-      btnShareReview.textContent = 'Share List';
-      btnShareReview.classList.remove('copied');
-    }, 2000);
-  }).catch(() => {
-    prompt('Copy this link:', window.location.href);
-  });
+    setTimeout(() => btnShareReview.classList.remove('copied'), 2000);
+  })();
 });
 
 btnShare.addEventListener('click', () => {
   exportPopover.classList.add('hidden');
-  navigator.clipboard.writeText(window.location.href).then(() => {
-    const orig = btnExportToggle.textContent!;
-    btnExportToggle.textContent = '✓ Copied!';
-    setTimeout(() => { btnExportToggle.textContent = orig; }, 2000);
-  }).catch(() => {
-    prompt('Copy this link:', window.location.href);
-  });
+  void (async () => {
+    const short = await shortenUrl(window.location.href);
+    await shareOrCopy(short, 'Delivery route');
+  })();
 });
 
 function setupExportButtons(): void {

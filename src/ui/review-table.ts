@@ -128,6 +128,7 @@ export function updateTableRow(tbody: HTMLTableSectionElement, stop: Stop): void
 
   const isFlagged = stop.status === 'not-found' || stop.status === 'outlier';
   tr.classList.toggle('flagged', isFlagged);
+  if (isFlagged) tr.classList.add('row-expanded'); // auto-expand errors on mobile
 
   const addrCell = tr.querySelector<HTMLElement>('.addr-cell');
   if (addrCell) {

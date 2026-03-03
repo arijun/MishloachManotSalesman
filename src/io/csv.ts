@@ -9,8 +9,8 @@ function findCol(headers: string[], candidates: string[]): number {
   return headers.findIndex(h => candidates.includes(h.trim().toLowerCase()));
 }
 
-/** Minimal RFC 4180-compliant CSV parser. */
-function parseCSV(text: string): string[][] {
+/** Minimal RFC 4180-compliant parser for CSV and TSV. */
+function parseDelimited(text: string, delimiter: string): string[][] {
   const rows: string[][] = [];
   let col = '';
   let row: string[] = [];
@@ -26,7 +26,7 @@ function parseCSV(text: string): string[][] {
       else { col += ch; }
     } else {
       if (ch === '"') { inQuotes = true; }
-      else if (ch === ',') { row.push(col); col = ''; }
+      else if (ch === delimiter) { row.push(col); col = ''; }
       else if (ch === '\n' || (ch === '\r' && next === '\n')) {
         if (ch === '\r') i++;
         row.push(col); col = '';
@@ -40,6 +40,14 @@ function parseCSV(text: string): string[][] {
   if (row.some(c => c.trim() !== '')) rows.push(row);
 
   return rows;
+}
+
+function parseCSV(text: string): string[][] {
+  const firstLine = text.slice(0, text.indexOf('\n') + 1 || text.length);
+  const tabs   = (firstLine.match(/\t/g)  || []).length;
+  const commas = (firstLine.match(/,/g)   || []).length;
+  const delim  = tabs > commas ? '\t' : ',';
+  return parseDelimited(text, delim);
 }
 
 export interface CSVParseResult {
