@@ -55,11 +55,14 @@ const formInput       = document.getElementById('form-input') as HTMLFormElement
 const inputStartAddr  = document.getElementById('start-address') as HTMLInputElement;
 const inputEndAddr    = document.getElementById('end-address') as HTMLInputElement;
 const inputTime       = document.getElementById('departure-time') as HTMLInputElement;
+const chkEndSame      = document.getElementById('end-same') as HTMLInputElement;
+const chkDepartNow    = document.getElementById('depart-now') as HTMLInputElement;
 const fileInput       = document.getElementById('file-input') as HTMLInputElement;
 const dropZone        = document.getElementById('drop-zone')!;
 const dropZoneText    = document.getElementById('drop-zone-text')!;
 const dropZoneFile    = document.getElementById('drop-zone-filename')!;
 const inputError      = document.getElementById('input-error')!;
+const btnLoad         = document.getElementById('btn-load') as HTMLButtonElement;
 const btnSkipCSV      = document.getElementById('btn-skip-csv')!;
 
 const btnBackInput    = document.getElementById('btn-back-input')!;
@@ -140,7 +143,17 @@ function setFileLoaded(name: string): void {
   dropZoneText.classList.add('hidden');
   dropZoneFile.textContent = name;
   dropZoneFile.classList.remove('hidden');
+  btnLoad.disabled = false;
 }
+
+chkEndSame.addEventListener('change', () => {
+  inputEndAddr.classList.toggle('hidden', chkEndSame.checked);
+  if (chkEndSame.checked) inputEndAddr.value = '';
+});
+
+chkDepartNow.addEventListener('change', () => {
+  inputTime.classList.toggle('hidden', chkDepartNow.checked);
+});
 
 function loadFile(file: File): void {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -170,8 +183,13 @@ function loadFile(file: File): void {
 /** Shared setup before entering the review screen. */
 function initReviewState(startAddr: string): void {
   state.startAddress  = startAddr;
-  state.endAddress    = inputEndAddr.value.trim() || startAddr;
-  state.departureTime = inputTime.value || '10:00';
+  state.endAddress    = chkEndSame.checked ? startAddr : (inputEndAddr.value.trim() || startAddr);
+  if (chkDepartNow.checked) {
+    const now = new Date();
+    state.departureTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  } else {
+    state.departureTime = inputTime.value || '10:00';
+  }
   state.depot         = null;
   state.endDepot      = null;
   state.matrix        = null;
@@ -186,7 +204,7 @@ formInput.addEventListener('submit', async e => {
 
   const startAddr = inputStartAddr.value.trim();
   if (!startAddr) { showError(inputError, 'Please enter a start address.'); return; }
-  if (!csvText)   { showError(inputError, 'Please load a CSV file.'); return; }
+  if (!csvText)   { showError(inputError, 'Please load a spreadsheet.'); return; }
 
   let parseResult;
   try {

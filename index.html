@@ -30,20 +30,31 @@
           </div>
 
           <div class="field">
-            <label for="end-address">
-              End address <span class="hint">(optional — defaults to start)</span>
-            </label>
+            <div class="field-header">
+              <label for="end-address" class="field-label">End address</label>
+              <label class="field-toggle">
+                <input type="checkbox" id="end-same" checked>
+                Same as start
+              </label>
+            </div>
             <input
               type="text"
               id="end-address"
-              placeholder="Same as start"
+              placeholder="123 Main St, Baltimore, MD"
               autocomplete="street-address"
+              class="hidden"
             />
           </div>
 
           <div class="field">
-            <label for="departure-time">Estimated departure time</label>
-            <input type="time" id="departure-time" value="10:00" />
+            <div class="field-header">
+              <label for="departure-time" class="field-label">Departure time</label>
+              <label class="field-toggle">
+                <input type="checkbox" id="depart-now" checked>
+                Now
+              </label>
+            </div>
+            <input type="time" id="departure-time" value="10:00" class="hidden" />
           </div>
 
           <div class="field">
@@ -52,19 +63,20 @@
               id="drop-zone"
               role="button"
               tabindex="0"
-              aria-label="Drop CSV file here or click to browse"
+              aria-label="Drop spreadsheet here or click to browse"
             >
-              <span id="drop-zone-text">Drop CSV here or <u>click to browse</u></span>
+              <span id="drop-zone-text">Drop spreadsheet here or <u>click to browse</u></span>
               <span id="drop-zone-filename" class="hidden"></span>
             </div>
             <input type="file" id="file-input" accept=".csv,.tsv,.xlsx,.xls,.ods" class="sr-only" />
           </div>
 
           <details class="format-hint">
-            <summary>CSV format</summary>
+            <summary>File format</summary>
             <div class="format-hint-body">
               <p>
-                One recipient per row. Required columns: <code>Name</code>, <code>Address</code>.
+                CSV, TSV, or Excel (.xlsx/.xls). One recipient per row.
+                Required columns: <code>Name</code>, <code>Address</code>.
                 Optional: <code>Phone</code>, <code>Notes</code>.
               </p>
               <pre>Name,Address,Phone,Notes
@@ -78,11 +90,11 @@ Cohen,789 Maple Dr,(410) 555-0303,</pre>
           <div id="input-error" class="error-banner hidden"></div>
 
           <div class="input-actions">
-            <button type="submit" id="btn-load" class="btn btn-primary">
-              Load Addresses
+            <button type="submit" id="btn-load" class="btn btn-primary" disabled>
+              Load
             </button>
             <button type="button" id="btn-skip-csv" class="btn btn-ghost">
-              Enter manually instead
+              Enter manually
             </button>
           </div>
         </form>
