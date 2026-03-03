@@ -291,10 +291,13 @@ export function setReviewHash(encoded: string): void {
  */
 export async function shortenUrl(url: string): Promise<string> {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(
       `https://is.gd/create.php?format=json&url=${encodeURIComponent(url)}`,
-      { signal: AbortSignal.timeout(5000) },
+      { signal: controller.signal },
     );
+    clearTimeout(timer);
     if (!res.ok) return url;
     const data = await res.json() as { shorturl?: string };
     return data.shorturl ?? url;

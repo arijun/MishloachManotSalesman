@@ -5,4 +5,7 @@ import { defineConfig } from 'vite';
 // For local dev, leave it unset so the base is '/'.
 export default defineConfig({
   base: process.env.VITE_BASE_PATH ?? '/',
+  server: {
+    allowedHosts: true,
+  },
 });
